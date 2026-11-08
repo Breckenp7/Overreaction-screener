@@ -1,6 +1,6 @@
 name: Backtest rebound entries
 
-on:
+"on":
   workflow_dispatch:
 
 jobs:
