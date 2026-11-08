@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+output/
+data/pool_stats_demo.json
+data/state_test.json
+.env
