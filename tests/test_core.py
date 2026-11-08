@@ -145,10 +145,31 @@ class TestEndToEnd(unittest.TestCase):
     def test_data_quality_warning(self):
         p = DemoProvider()
         tickers = p.tickers() + [f"MISSING{i}" for i in range(100)]
-        res = pipeline.run_scan(p, CFG, tickers, ROOT, log=lambda *_: None)
-        self.assertFalse(res["data_ok"])
-        self.assertTrue(any("DATA QUALITY" in w for w in res["warnings"]))
+        with self.assertRaisesRegex(RuntimeError, "DATA QUALITY"):
+            pipeline.run_scan(p, CFG, tickers, ROOT, log=lambda *_: None)
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestYahooPriceParsing(unittest.TestCase):
+    def test_one_month_spy_is_not_discarded(self):
+        from screener.data import YahooProvider
+        from unittest.mock import Mock
+        provider = YahooProvider.__new__(YahooProvider)
+        dates = pd.bdate_range("2026-10-01", periods=23)
+        frame = pd.DataFrame({k: [100.0] * 23 for k in ["Open", "High", "Low", "Close", "Volume"]}, index=dates)
+        provider.yf = Mock()
+        provider.yf.download.return_value = pd.concat({"SPY": frame}, axis=1)
+        result = provider.prices(["SPY"], period="1mo")
+        self.assertEqual(len(result["SPY"]), 23)
+        self.assertFalse(provider.yf.download.call_args.kwargs["threads"])
+
+    def test_empty_prices_are_not_treated_as_valid(self):
+        from screener.data import YahooProvider
+        from unittest.mock import Mock
+        provider = YahooProvider.__new__(YahooProvider)
+        provider.yf = Mock()
+        provider.yf.download.return_value = pd.DataFrame()
+        self.assertEqual(provider.prices(["SPY"]), {})

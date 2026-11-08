@@ -1,3 +1,13 @@
+## November 2026 reliability patch
+
+- Fixed SPY connectivity probe: a valid one-month dataset (typically 20-23 sessions) is no longer rejected for having <=30 rows.
+- Yahoo Finance downloads use 10-symbol batches and disable threading. Batch failures and parse errors are logged.
+- Wikipedia universe parsing accepts alternate Nasdaq-100 ticker column names, validates HTTP responses, and rejects severely incomplete universes.
+- Scans fail rather than silently presenting results when fewer than 80% of requested stock symbols return data.
+- GitHub scheduled and manual scans always run in report-only mode: **no phone or email notifications**. Download the HTML/TXT report under the workflow run's Artifacts section.
+- The weekly pooled study also uploads downloadable statistics as an artifact.
+- Unit tests and simulated-data scan/pool tests pass locally. Live GitHub market-data reliability still needs verification after deployment.
+
 # Market Overreaction Screener
 
 A **research-only** tool. It scans large U.S. stocks twice per trading day, finds sharp

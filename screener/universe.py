@@ -27,10 +27,18 @@ def _clean(t):
 
 def _fetch(name):
     url, col = SOURCES[name]
-    html = requests.get(url, headers=HEADERS, timeout=30).text
+    response = requests.get(url, headers=HEADERS, timeout=30)
+    response.raise_for_status()
+    html = response.text
     for table in pd.read_html(StringIO(html)):
-        if col in table.columns:
-            return [_clean(x) for x in table[col].dropna()]
+        # Wikipedia occasionally changes table header shape and capitalization.
+        columns = [str(c[-1] if isinstance(c, tuple) else c).strip() for c in table.columns]
+        aliases = {"Ticker", "Ticker symbol", "Symbol"} if name == "nasdaq100" else {col}
+        matches = [j for j, c in enumerate(columns) if c in aliases]
+        if matches:
+            values = [_clean(x) for x in table.iloc[:, matches[0]].dropna()]
+            if len(values) >= 50:
+                return values
     raise ValueError(f"No '{col}' column found for {name}")
 
 
@@ -48,7 +56,10 @@ def read_extra(path):
 
 def build_universe(cfg, root, log=print):
     cache = Path(root) / "data" / "universe_cache.json"
-    cached = json.loads(cache.read_text()) if cache.exists() else {}
+    try:
+        cached = json.loads(cache.read_text()) if cache.exists() else {}
+    except (ValueError, OSError):
+        cached = {}
     tickers, warnings = [], []
     for name in cfg["universe"]["sources"]:
         try:
@@ -67,6 +78,8 @@ def build_universe(cfg, root, log=print):
         pass
     tickers += read_extra(Path(root) / cfg["universe"]["extra_tickers_file"])
     tickers = sorted(set(tickers))
+    if len(tickers) < 50:
+        raise RuntimeError(f"Stock universe contains only {len(tickers)} tickers; index sources unavailable. Refusing an incomplete scan.")
     for w in warnings:
         log("WARNING: " + w)
     return tickers, warnings

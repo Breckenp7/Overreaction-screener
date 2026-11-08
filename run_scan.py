@@ -94,7 +94,7 @@ def main(argv=None):
                 raise RuntimeError("Stock universe is empty (could not download index lists and no saved copy exists).")
 
         probe = provider.prices(["SPY"], period="1mo" if not args.demo else "1y").get("SPY")
-        if probe is None:
+        if probe is None or probe.empty:
             raise RuntimeError("Could not reach the price data source (SPY probe failed).")
         last_bar = probe.index[-1].date()
         if not args.force and last_bar != now.date():

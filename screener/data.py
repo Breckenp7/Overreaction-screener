@@ -47,7 +47,8 @@ class YahooProvider:
         return self._tickers[ticker]
 
     # ---------- prices ----------
-    def prices(self, tickers, period="1y", chunk=150):
+    def prices(self, tickers, period="1y", chunk=10):
+        """Download adjusted daily OHLCV, with a shorter threshold for probe requests."""
         out = {}
         tickers = list(dict.fromkeys(tickers))
         for i in range(0, len(tickers), chunk):
@@ -55,20 +56,36 @@ class YahooProvider:
             try:
                 df = _retry(lambda: self.yf.download(
                     part, period=period, interval="1d", auto_adjust=True,
-                    group_by="ticker", threads=True, progress=False))
-            except Exception:
+                    group_by="ticker", threads=False, progress=False))
+            except Exception as exc:
+                print(f"WARNING: Yahoo price batch {part[:3]} ({len(part)} tickers) failed: {type(exc).__name__}: {exc}", flush=True)
                 continue
             if df is None or df.empty:
+                print(f"WARNING: Yahoo returned no price data for batch starting {part[0]}", flush=True)
                 continue
             for t in part:
                 try:
-                    sub = df[t] if isinstance(df.columns, pd.MultiIndex) else df
-                    sub = sub[["Open", "High", "Low", "Close", "Volume"]].dropna(subset=["Close"])
-                    if len(sub) > 30:
-                        sub.index = pd.to_datetime(sub.index).tz_localize(None)
+                    if isinstance(df.columns, pd.MultiIndex):
+                        if t in df.columns.get_level_values(0):
+                            sub = df[t]
+                        elif t in df.columns.get_level_values(1):
+                            sub = df.xs(t, axis=1, level=1)
+                        else:
+                            continue
+                    else:
+                        sub = df
+                    sub = sub[["Open", "High", "Low", "Close", "Volume"]].dropna(subset=["Close"]).copy()
+                    # A one-month SPY connectivity probe normally has ~20-23 trading days.
+                    # Keep all nonempty datasets here; downstream scans enforce their own
+                    # history requirements for analysis.
+                    if not sub.empty:
+                        sub.index = pd.to_datetime(sub.index)
+                        if sub.index.tz is not None:
+                            sub.index = sub.index.tz_localize(None)
                         out[t] = sub
-                except Exception:
-                    continue
+                except Exception as exc:
+                    print(f"WARNING: Could not parse prices for {t}: {type(exc).__name__}: {exc}", flush=True)
+        print(f"Price download: {len(out)}/{len(tickers)} symbols returned ({period}).", flush=True)
         return out
 
     # ---------- company data ----------

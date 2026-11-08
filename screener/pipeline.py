@@ -27,7 +27,7 @@ def run_scan(provider, cfg, tickers, root, partial=False, log=print):
         result["warnings"].append(
             f"DATA QUALITY: only {got} of {len(tickers)} tickers returned prices ({coverage:.0%}). "
             "Yahoo may be rate-limiting; results below are incomplete.")
-        result["data_ok"] = False
+        raise RuntimeError(result["warnings"][-1] + " Aborting incomplete scan.")
     else:
         result["data_ok"] = True
 
