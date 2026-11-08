@@ -143,3 +143,23 @@ The separate watchlist scans all price-available symbols, even if their market
  before using a watchlist entry.** The main ranked report retains its original
  $10B filter. Yahoo daily OHLC can be delayed or revised; check current prices
  before acting.
+
+## Five-day rebound entry backtest (V2)
+
+GitHub **Actions → Backtest rebound entries → Run workflow** runs a separate
+historical comparison; it does **not** send alerts or change the regular scan.
+Choose comma-separated tickers, a minimum daily selloff (default 7%), and a
+holding period (default 5 trading days). Download the `rebound-backtest`
+artifact and open `rebound_entry_backtest.txt`.
+
+The report compares (1) buying at the selloff close across all setups, (2)
+buying at that close on the matched subset of setups that subsequently confirm,
+and (3) waiting for the following session's close and buying only when it closes
+above the selloff day's high with a higher low. Each hypothetical entry exits
+five trading sessions after *its own* entry. A 10-basis-point round-trip cost
+is deducted. This comparison has **selection bias** in the matched immediate
+subset (it is retrospective), **survivorship bias**, and assumes fills at the
+closing price with no slippage. It is an exploratory event study, **not** an
+investable performance estimate or a validated trading strategy. The stock
+universe is user-selected, not point-in-time reconstructed; fundamentals,
+market-cap screens, and news-catalyst classification are not backtested.
