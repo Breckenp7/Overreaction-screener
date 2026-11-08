@@ -2,7 +2,7 @@
 classify -> score -> rank."""
 import traceback
 import pandas as pd
-from . import events, history, scoring, pool as poolmod
+from . import events, history, scoring, rebound, pool as poolmod
 from .data import BENCHMARK, SECTOR_ETFS
 
 INFO_KEYS = ["shortName", "sector", "revenueGrowth", "earningsGrowth", "profitMargins",
@@ -30,6 +30,13 @@ def run_scan(provider, cfg, tickers, root, partial=False, log=print):
         raise RuntimeError(result["warnings"][-1] + " Aborting incomplete scan.")
     else:
         result["data_ok"] = True
+
+    # Independent previous-session reversal watchlist. Only uses already-downloaded
+    # OHLC bars and is kept separate from the original scoring rubric.
+    result["rebound_watchlist"] = rebound.scan(px, tickers, cfg, partial=partial)
+    result["stats"]["rebound_setups"] = len(result["rebound_watchlist"])
+    result["stats"]["confirmed_reversals"] = sum(
+        r["status"] == "CONFIRMED REVERSAL" for r in result["rebound_watchlist"])
 
     # 1) Which stocks fell enough?
     flagged = []

@@ -117,3 +117,29 @@ tests/                 automated tests (python -m unittest discover -s tests)
 ```
 
 Try it offline with synthetic data: `python run_scan.py --demo --dry-run`
+
+## Short-term reversal confirmation (experimental)
+
+The scan now writes `output/report_DATE_MODE_rebound_watchlist.txt` in addition
+ to the existing HTML and text reports. This separate research watchlist looks
+ for stocks that crossed the configured drop threshold **on the previous
+ trading session**, then evaluates the latest session:
+
+- **CONFIRMED REVERSAL**: latest completed daily close is above the previous
+  session's high, its low is above the previous low, and its close is above
+  the previous close.
+- **WATCHLIST**: prior-day drop qualifies but confirmation is absent, or the
+  latest bar is intraday (incomplete).
+- **INVALIDATED**: latest completed close is below the prior session's low.
+
+This is a *next-session* rule. It does not track a setup across multiple days,
+ make trades, calculate rebound probabilities, or claim that these signals
+ outperform a benchmark. The existing historical rebound analysis measures
+ returns from the drop-day close and is **not** a backtest of these new
+ confirmation entries. Do not interpret the signals as a validated edge.
+
+The separate watchlist scans all price-available symbols, even if their market
+ capitalization cannot be checked. **Apply the $10B market-cap filter manually
+ before using a watchlist entry.** The main ranked report retains its original
+ $10B filter. Yahoo daily OHLC can be delayed or revised; check current prices
+ before acting.

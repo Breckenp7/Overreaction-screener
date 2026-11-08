@@ -16,7 +16,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from screener.config import load_config, ROOT
-from screener import pipeline, report, notify
+from screener import pipeline, report, notify, rebound
 from screener.universe import build_universe
 
 ET = ZoneInfo("America/New_York")
@@ -113,6 +113,9 @@ def main(argv=None):
         base = f"report_{today_key}_{mode}"
         (out_dir / f"{base}.html").write_text(html, encoding="utf-8")
         (out_dir / f"{base}.txt").write_text(text, encoding="utf-8")
+        reversal_text = rebound.render_text(result.get("rebound_watchlist", []), partial=partial)
+        (out_dir / f"{base}_rebound_watchlist.txt").write_text(reversal_text, encoding="utf-8")
+        print(reversal_text)
         print(text)
         print(f"\nSaved: output/{base}.html")
 
