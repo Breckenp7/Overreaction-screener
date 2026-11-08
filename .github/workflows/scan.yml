@@ -1,0 +1,83 @@
+name: Scan for overreactions
+
+on:
+  schedule:
+    # GitHub schedules run in UTC and ignore daylight saving, so each scan is
+    # listed twice (summer + winter). The script checks the New York clock and
+    # only the right one actually runs; the other exits in seconds.
+    - cron: "15 14 * * 1-5"   # ~10:15 AM ET (summer)  -> market-open scan
+    - cron: "15 15 * * 1-5"   # ~10:15 AM ET (winter)
+    - cron: "30 20 * * 1-5"   # ~4:30 PM ET (summer)   -> market-close scan
+    - cron: "30 21 * * 1-5"   # ~4:30 PM ET (winter)
+  workflow_dispatch:          # lets you press a "Run workflow" button for a test
+    inputs:
+      mode:
+        description: "Which scan"
+        type: choice
+        options: [auto, open, close]
+        default: close
+      dry_run:
+        description: "Dry run (don't send anything)"
+        type: boolean
+        default: true
+      force:
+        description: "Ignore time/weekend/already-ran checks"
+        type: boolean
+        default: true
+
+concurrency:
+  group: scan
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # only used to save data/state.json (which alerts were already sent)
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Run scan
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          MODE: ${{ inputs.mode }}
+          DRY: ${{ inputs.dry_run }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          ARGS="--mode ${MODE:-auto}"
+          [ "$FORCE" = "true" ] && ARGS="$ARGS --force"
+          [ "$DRY" = "true" ] && ARGS="$ARGS --dry-run"
+          python run_scan.py $ARGS
+
+      - name: Keep the full report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: output/
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Save state (which alerts were already sent)
+        if: success()
+        run: |
+          git config user.name "screener-bot"
+          git config user.email "screener-bot@users.noreply.github.com"
+          git add data/state.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "Update scan state"
+            git pull --rebase
+            git push
+          fi
