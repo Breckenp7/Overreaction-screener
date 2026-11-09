@@ -28,21 +28,22 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
 
-      - name: Run stock screener
-        run: python run_scan.py
+      - name: Generate stock screener and reversal watchlist
+        run: python run_scan.py --mode close --force --dry-run
 
       - name: Run historical backtest
         run: python run_backtest.py
 
-      - name: Generate master dashboard
+      - name: Generate combined master dashboard
         run: python run_master.py
 
-      - name: Upload dashboard and reports
+      - name: Upload all reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: overreaction-master-dashboard
           path: |
-            reports/
             output/
+            reports/
           if-no-files-found: warn
+          retention-days: 30
