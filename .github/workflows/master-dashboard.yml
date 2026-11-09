@@ -34,6 +34,9 @@ jobs:
       - name: Run historical backtest
         run: python run_backtest.py
 
+      - name: Run V5 historical validation
+        run: python run_validation.py
+
       - name: Generate combined master dashboard
         run: python run_master.py
 
