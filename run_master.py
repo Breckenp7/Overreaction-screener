@@ -76,6 +76,24 @@ def main():
         stocks_table='<h2>Stock-by-stock · immediate entry mean</h2><div class="scroll"><table><thead><tr><th>Symbol</th><th>Setups</th><th>Confirmed</th>'+''.join(f'<th>{p}d</th>' for p in periods)+'</tr></thead><tbody>'+stocks+'</tbody></table></div>'
         backtest=cards+'<h2>Return by holding period</h2>'+table+stocks_table+'<div class="note">Historical research only. Close-to-close hypothetical fills; no slippage, delisted stocks, point-in-time market caps or out-of-sample validation. Confirmation does not trade every setup. Matched entries use different entry and exit dates. The backtest universe is the symbols shown above, not necessarily the full daily scan universe.</div>'
         sections.append(('backtest','Historical backtest',backtest))
+    validation_file = root / 'walkforward_validation.json'
+    if validation_file.exists():
+        v=json.loads(validation_file.read_text(encoding='utf-8'))
+        summary='<div class="note">PRICE-ONLY WALK-FORWARD REPLAY, not the original composite score. Historical constituent membership and fundamentals are not reconstructed. Scores are not probabilities.</div>'
+        summary+=f'<div class="cards"><div class="card">Coverage<b>{v.get("universe_downloaded",0)}/{v.get("universe_requested",0)}</b></div><div class="card">Replay dates<b>{v["replay_dates"]}</b></div><div class="card">Selected events<b>{v["selected_events"]}</b></div></div>'
+        summary+='<h2>Ranked picks vs all rankable setups</h2><div class="scroll"><table><tr><th>Horizon</th><th>Picks n</th><th>Picks mean</th><th>Picks vs SPY</th><th>All mean</th><th>All vs SPY</th></tr>'
+        for h in (1,2,3,5,10,20):
+            a=v['selected'][str(h)];b=v['all_rankable'][str(h)]
+            summary+=f'<tr><td>{h}d</td><td>{a["n"]}</td><td>{fmt(a["mean_pct"])}</td><td>{fmt(a["mean_excess_spy_pct"])}</td><td>{fmt(b["mean_pct"])}</td><td>{fmt(b["mean_excess_spy_pct"])}</td></tr>'
+        summary+='</table></div><h2>Historical replay — choose a trading date</h2>'
+        summary+='<select id="replay-date" style="padding:10px;background:#1c2a40;color:white;border:1px solid #3b506d">'
+        for r in reversed(v['replays']):summary+=f'<option value="{html.escape(r["date"])}">{html.escape(r["date"])} · {r["setups"]} selloffs</option>'
+        summary+='</select><div id="replay-detail" class="scroll"></div>'
+        payload=json.dumps(v['replays']).replace('<',chr(92)+'u003c').replace('>',chr(92)+'u003e').replace('&',chr(92)+'u0026')
+        summary+=f'<script type="application/json" id="replay-data">{payload}</script>'
+        summary+="""<script>(function(){const s=document.getElementById('replay-date'),t=document.getElementById('replay-detail'),rs=JSON.parse(document.getElementById('replay-data').textContent);function show(){const r=rs.find(x=>x.date===s.value);if(!r)return;let out='<p>Setups: '+r.setups+' · rankable: '+r.rankable+' · selected: '+r.picks.length+'</p><table><tr><th>Symbol</th><th>Drop</th><th>Score</th><th>Prior events</th><th>1d actual</th><th>5d actual</th><th>20d actual</th></tr>';for(const x of r.picks){out+='<tr><td>'+x.ticker+'</td><td>'+x.drop_pct.toFixed(1)+'%</td><td>'+x.score+'</td><td>'+x.prior_events+'</td><td>'+x.returns['1'].toFixed(2)+'%</td><td>'+x.returns['5'].toFixed(2)+'%</td><td>'+x.returns['20'].toFixed(2)+'%</td></tr>'}t.innerHTML=out+'</table><p>'+r.unranked.length+' setups lacked 5 matured prior events and were not scored.</p>'}s.addEventListener('change',show);show()})();</script>"""
+        summary+='<div class="note">'+' '.join(html.escape(x) for x in v['limitations'])+'</div>'
+        sections.append(('validation','Walk-forward & historical replay',summary))
     if not sections:
         raise SystemExit('No reports found. Run run_scan.py and/or run_backtest.py first.')
     buttons=''.join(f'<button data-tab="{key}" class="{"active" if i==0 else ""}">{label}</button>' for i,(key,label,_) in enumerate(sections))

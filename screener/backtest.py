@@ -22,7 +22,7 @@ def backtest_symbol(df, ticker, daily_drop_pct=7.0, hold_days=5, cost_bps=10, co
         if min(prior['Close'], setup['Close'], setup['High'], setup['Low'], next_bar['Close'], next_bar['Low']) <= 0:
             continue
         drop = float(setup['Close'] / prior['Close'] - 1)
-        if drop > -daily_drop_pct / 100:
+        if drop >= -daily_drop_pct / 100:
             continue
         last_setup = i
         confirmed = bool(next_bar['Close'] > setup['High'] and next_bar['Low'] > setup['Low'] and next_bar['Close'] > setup['Close'])
@@ -60,7 +60,7 @@ def summarize(events):
 def render(events, hold_days, threshold, cost_bps):
     s = summarize(events)
     lines = ['REBOUND ENTRY BACKTEST — HISTORICAL RESEARCH ONLY',
-             f'Setup: single-session drop >= {threshold:g}%; confirm at next completed daily close above setup high, higher low, positive close.',
+             f'Setup: single-session drop > {threshold:g}%; confirm at next completed daily close above setup high, higher low, positive close.',
              f'Exit: {hold_days} trading sessions after each respective entry close. Assumed round-trip cost: {cost_bps:g} bps.',
              'CAUTION: close-to-close hypothetical fills, no slippage/market impact, survivorship bias, no delisted stocks, no point-in-time market cap, no out-of-sample validation.',
              'Confirmation strategy makes NO TRADE when next-day conditions fail. Its results must not be compared as if it trades every setup.',

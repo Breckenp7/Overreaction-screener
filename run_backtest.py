@@ -10,7 +10,7 @@ DEFAULT_PERIODS = [1, 2, 3, 5, 10, 20]
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('--tickers', default=DEFAULT)
+    p.add_argument('--tickers', default=DEFAULT, help='Legacy 12-stock strategy comparison; full-universe evaluation uses run_validation.py')
     p.add_argument('--years', type=int, default=10)
     p.add_argument('--threshold', type=float, default=7.0)
     p.add_argument('--hold', type=int, default=5, help='Legacy text report holding period')

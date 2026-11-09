@@ -163,3 +163,12 @@ closing price with no slippage. It is an exploratory event study, **not** an
 investable performance estimate or a validated trading strategy. The stock
 universe is user-selected, not point-in-time reconstructed; fundamentals,
 market-cap screens, and news-catalyst classification are not backtested.
+
+
+## V5: full-universe price-only walk-forward and Historical Replay
+
+Run `python run_validation.py --years 10 --start 2024-01-01 --top-n 5` to download the **current configured universe** (S&P 500, S&P 400, Nasdaq-100, extras) plus SPY, build historical close-to-close >7% selloff events, and generate `output/walkforward_validation.json`. Then run `python run_master.py` to add the **Walk-forward & historical replay** tab. Use the dropdown to select a past trading date and inspect ranked candidates and their subsequently realized 1/2/3/5/10/20-day outcomes. To run a quick local subset: `python run_validation.py --tickers SOFI,NVDA,AMD,MCHP,HALO --years 10`.
+
+**Important research limitations:** This replay uses a *price-only* scoring proxy (historical 5-day win rate shrunk toward 50%, plus a small mean-return adjustment), not the current live composite score. It only uses past events with fully matured 20-day outcomes and requires at least five previous events to score a stock. This prevents direct future-return leakage into the ranking, but does **not** establish predictive validity. Current index constituents are applied retrospectively (survivorship/membership lookahead); historical market caps, earnings, analyst targets, news and point-in-time fundamentals are not reconstructed. The score is **not a calibrated probability**, and a ranking is not a buy recommendation. Daily close entry is hypothetical; costs are assumed, and slippage, market impact and overlapping events remain limitations. The comparison uses the same-date SPY returns. This process does not train a predictive model and cannot prove an edge.
+
+The original `run_backtest.py` remains a **legacy 12-stock comparison** for immediate versus next-day confirmation. Its results are not full-universe evidence. The new replay workflow is a separate evaluation. Full-universe downloading can take substantial time and may be rate-limited by Yahoo; the workflow refuses to publish validation if fewer than 75% of requested ticker histories are available.
