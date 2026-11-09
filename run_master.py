@@ -20,6 +20,40 @@ def main():
     datafile = root / 'rebound_backtest.json'
     data = json.loads(datafile.read_text(encoding='utf-8')) if datafile.exists() else None
     sections = []
+    research_file = scan.with_name(scan.stem + '_research.json') if scan else None
+    if research_file and research_file.exists():
+        research = json.loads(research_file.read_text(encoding='utf-8'))
+        candidates = research.get('candidates', [])
+        rows = []
+        for c in candidates:
+            h = c.get('history') or {}
+            five = h.get('horizons', {}).get('5') or h.get('horizons', {}).get(5) or {}
+            n = h.get('n', 0)
+            rate = five.get('win_rate')
+            mean = five.get('mean_return')
+            rows.append((c, n, rate, mean))
+        # Rank first by reliability of the history, then observed five-day outcomes and existing research score.
+        # This is a descriptive ranking, NOT a calibrated probability or a buy signal.
+        rows.sort(key=lambda x: (x[1] >= 10, (x[2] if x[2] is not None else -1), (x[3] if x[3] is not None else -999), x[0]['score']), reverse=True)
+        summary = '<div class="note">Strictly greater than 7% CLOSE-TO-CLOSE declines only. Historical win rates are NOT forecasts or calibrated probabilities. A small sample cannot justify a buy recommendation. Historical statistics are close-to-close hypothetical returns, with assumed costs. The ranking is descriptive research, not investment advice.</div>'
+        summary += f'<div class="cards"><div class="card">Trading date<b>{html.escape(str(research.get("as_of", "?")))}</b></div><div class="card">Qualified candidates<b>{len(rows)}</b></div><div class="card">Universe scanned<b>{research.get("universe_size", 0)}</b></div></div>'
+        if not rows:
+            summary += '<p>No qualifying candidates in the current report.</p>'
+        for rank, (c, n, rate, mean) in enumerate(rows, 1):
+            status = 'Research candidate' if n >= 10 and rate is not None and rate >= .6 and mean is not None and mean > 0 else ('Limited evidence' if n < 10 else 'Review risks')
+            summary += f'<h2>#{rank} {html.escape(c["ticker"])} — {html.escape(c["name"])} · {status}</h2><p>Daily drop: {c["daily_drop_pct"]:+.2f}% · Existing research score: {c["score"]}/100 · Comparable historical events: {n}</p>'
+            summary += '<div class="scroll"><table><tr><th>Holding period</th><th>Events</th><th>Average net return</th><th>Median net return</th><th>Historical positive rate</th><th>Beat SPY</th></tr>'
+            for period in (1, 2, 3, 5, 10, 20):
+                st = (c.get('history') or {}).get('horizons', {})
+                rec = st.get(str(period)) or st.get(period) or {}
+                def pc(v): return '—' if v is None else f'{v*100:+.1f}%'
+                summary += f'<tr><td>{period}d</td><td>{n}</td><td>{pc(rec.get("mean_return"))}</td><td>{pc(rec.get("median_return"))}</td><td>{pc(rec.get("win_rate"))}</td><td>{pc(rec.get("win_rate_vs_spy"))}</td></tr>'
+            summary += '</table></div>'
+            risks = c.get('risks') or []
+            if risks:
+                summary += '<p><b>Risks and cautions:</b> ' + ' '.join(html.escape(str(x)) for x in risks) + '</p>'
+            summary += '<p class="muted">Assessment is descriptive, not a predictive likelihood. Review the selloff catalyst and company filings before deciding.</p>'
+        sections.append(('research', 'Ranked stock research', summary))
     if scan:
         sections.append(('scan','Today’s opportunities', '<iframe title="Original Overreaction Report" srcdoc="' + html.escape(scan.read_text(encoding='utf-8'), quote=True) + '"></iframe>'))
     if rebound and rebound.exists():

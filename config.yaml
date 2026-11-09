@@ -12,7 +12,7 @@ universe:
 detection:
   daily_drop_pct: 7.0          # flag a one-day fall of at least this much
   multi_day_window: 5          # ...or a fall over this many trading days
-  multi_day_drop_pct: 12.0     # ...of at least this much
+  multi_day_drop_pct: 12.0     # retained for legacy reference; not used to qualify
   include_earnings_misses: false   # false = hide drops where EPS clearly missed estimates
   include_uncategorized: false     # false = only show drops that fit one of the 3 categories
 
@@ -31,7 +31,7 @@ history:
   similar_drop_ratio: 0.75     # "similar" past drop = at least 75% as big as today's
   min_similar_drop_pct: 4.0    # ...but never smaller than this
   cooldown_days: 10            # ignore repeat drops within this many days of each other
-  horizons: [5, 10, 20]        # forward trading days to measure
+  horizons: [1, 2, 3, 5, 10, 20]        # forward trading days to measure
   round_trip_cost_bps: 10      # assumed trading cost (10 bps = 0.10%) subtracted from returns
   years: 10                    # how much history to pull per candidate
 

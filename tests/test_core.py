@@ -35,7 +35,7 @@ class TestEvents(unittest.TestCase):
         c = series(np.full(200, 100.0))
         c.iloc[-5:] = [97, 94, 92, 90, 87]  # -13% over 5 days, no single day >= 7%
         d = events.detect_drop(c, CFG)
-        self.assertEqual(d["type"], "5_day")
+        self.assertIsNone(d)  # only single-day declines qualify now
 
     def test_reaction_date_after_close_goes_to_next_day(self):
         days = pd.bdate_range("2026-11-02", periods=6)

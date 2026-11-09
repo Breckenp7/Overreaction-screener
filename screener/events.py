@@ -13,22 +13,19 @@ def pct_change_over(close, n):
 def detect_drop(close, cfg):
     """Return a dict describing the drop if the latest bar breaches a threshold."""
     d = cfg["detection"]
-    n = int(d["multi_day_window"])
     if len(close) < 80:
         return None
     r1 = pct_change_over(close, 1)
-    rn = pct_change_over(close, n)
-    single = r1 <= -d["daily_drop_pct"] / 100
-    multi = rn <= -d["multi_day_drop_pct"] / 100
-    if not (single or multi):
+    # STRICT: a drop of exactly 7.00% does not qualify; five-day declines never qualify.
+    if not np.isfinite(r1) or not r1 < -d["daily_drop_pct"] / 100:
         return None
-    horizon = 1 if single else n
-    ret = r1 if single else rn
+    horizon = 1
+    ret = r1
     daily = close.pct_change().dropna()
     vol = float(daily.iloc[-61:-1].std()) if len(daily) > 61 else float(daily.std())
     z = abs(ret) / (vol * np.sqrt(horizon)) if vol > 0 else np.nan
     return {
-        "type": "single_day" if single else f"{n}_day",
+        "type": "single_day",
         "horizon": horizon,
         "return": ret,
         "one_day_return": r1,

@@ -40,7 +40,7 @@ def _hist_line(stats, label):
     parts = []
     for h in sorted(stats["horizons"], key=int):
         v = stats["horizons"][h]
-        parts.append(f"{h}d median {pct(v['median_return'])} (beat SPY {v['win_rate_vs_spy'] * 100:.0f}%)")
+        parts.append(f"{h}d median {pct(v['median_return'])} (beat SPY {v['win_rate_vs_spy'] * 100:.0f}% )" if v.get("win_rate_vs_spy") is not None else f"{h}d median {pct(v['median_return'])} (SPY history unavailable)")
     rec = stats.get("recovered_within_60d_rate")
     extra = f"; back to pre-drop price within 60d: {rec * 100:.0f}%" if rec is not None else ""
     return (f"{label} (n={stats['n']}, {stats.get('first_date', '?')} to {stats.get('last_date', '?')}): "

@@ -15,7 +15,7 @@ def find_events(close, threshold, cooldown=10, spy_close=None, spy_floor=None):
     events within `cooldown` days. If spy_floor is set (e.g. -0.015), also require
     SPY's same-day return to be >= spy_floor (i.e. a company-specific drop)."""
     ret = close.pct_change()
-    mask = ret <= -threshold
+    mask = ret < -threshold
     if spy_close is not None and spy_floor is not None:
         spy_ret = spy_close.pct_change().reindex(close.index)
         mask &= spy_ret >= spy_floor
@@ -59,12 +59,13 @@ def summarize(events, horizons):
     for h in horizons:
         r = np.array([e[f"r{h}"] for e in events])
         x = np.array([e[f"x{h}"] for e in events])
+        valid_x = x[np.isfinite(x)]
         s["horizons"][h] = {
             "median_return": float(np.median(r)),
             "mean_return": float(np.mean(r)),
             "win_rate": float(np.mean(r > 0)),
-            "win_rate_vs_spy": float(np.mean(x > 0)),
-            "median_excess": float(np.median(x)),
+            "win_rate_vs_spy": float(np.mean(valid_x > 0)) if len(valid_x) else None,
+            "median_excess": float(np.median(valid_x)) if len(valid_x) else None,
             "p10_return": float(np.percentile(r, 10)),
         }
     adv = np.array([e["max_adverse"] for e in events])
@@ -84,7 +85,9 @@ def same_stock_history(close, spy_close, current_drop, cfg, exclude_last_days=1)
     h = cfg["history"]
     horizons = h["horizons"]
     cost = h["round_trip_cost_bps"] / 10000
-    thr = max(h["min_similar_drop_pct"] / 100, h["similar_drop_ratio"] * current_drop)
+    thr = h["min_similar_drop_pct"] / 100
+    # Historical comparisons use the same >7% one-session threshold as the live scan.
+    thr = max(thr, cfg["detection"]["daily_drop_pct"] / 100)
     past = close.iloc[:-exclude_last_days] if exclude_last_days else close
     idxs = find_events(past, thr, h["cooldown_days"])
     events = [e for e in (measure_event(past, spy_close, i, horizons, cost) for i in idxs) if e]

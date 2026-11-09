@@ -102,7 +102,9 @@ def build_candidate(provider, cfg, t, drop, cap, px, spy, pool_stats, partial, l
             return None
     primary = cats[0]
 
-    same = history.same_stock_history(close, spy["Close"], abs(drop["one_day_return"] if drop["horizon"] == 1 else drop["return"]) , cfg)
+    long_spy = provider.prices([BENCHMARK], period=f"{cfg['history']['years']}y").get(BENCHMARK)
+    benchmark_close = long_spy["Close"] if long_spy is not None and len(long_spy) > len(spy) else spy["Close"]
+    same = history.same_stock_history(close, benchmark_close, abs(drop["one_day_return"]), cfg)
     bucket_name = {"earnings_overreaction": "earnings_beat_drop",
                    "broad_market": "market_selloff_drop"}.get(primary, "idiosyncratic_drop")
     pooled = ((pool_stats or {}).get("buckets") or {}).get(bucket_name)

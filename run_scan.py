@@ -111,6 +111,19 @@ def main(argv=None):
         out_dir = ROOT / "output"
         out_dir.mkdir(exist_ok=True)
         base = f"report_{today_key}_{mode}"
+        # Machine-readable candidate research for the Master Dashboard.
+        research = {"as_of": str(result.get("stats", {}).get("latest_bar", today_key)),
+                    "threshold_rule": "strictly greater than 7% close-to-close decline",
+                    "universe_size": len(tickers), "flagged": result["stats"].get("flagged_before_size_filter", 0),
+                    "candidates": []}
+        for c in result["candidates"]:
+            research["candidates"].append({
+                "ticker": c["ticker"], "name": c["name"], "sector": c["sector"],
+                "daily_drop_pct": round(c["drop"]["one_day_return"] * 100, 2),
+                "score": round(c["score"]["score"], 1),
+                "market_cap": c["market_cap"], "history": c["same_history"],
+                "risks": c["counterarguments"][:4]})
+        (out_dir / f"{base}_research.json").write_text(json.dumps(research, indent=2, allow_nan=False), encoding="utf-8")
         (out_dir / f"{base}.html").write_text(html, encoding="utf-8")
         (out_dir / f"{base}.txt").write_text(text, encoding="utf-8")
         reversal_text = rebound.render_text(result.get("rebound_watchlist", []), partial=partial)
