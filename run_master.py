@@ -34,14 +34,14 @@ def main():
             rows.append((c, n, rate, mean))
         # Rank first by reliability of the history, then observed five-day outcomes and existing research score.
         # This is a descriptive ranking, NOT a calibrated probability or a buy signal.
-        rows.sort(key=lambda x: (x[1] >= 10, (x[2] if x[2] is not None else -1), (x[3] if x[3] is not None else -999), x[0]['score']), reverse=True)
+        rows.sort(key=lambda x: x[0]['score'], reverse=True)
         summary = '<div class="note">Strictly greater than 7% CLOSE-TO-CLOSE declines only. Historical win rates are NOT forecasts or calibrated probabilities. A small sample cannot justify a buy recommendation. Historical statistics are close-to-close hypothetical returns, with assumed costs. The ranking is descriptive research, not investment advice.</div>'
         summary += f'<div class="cards"><div class="card">Trading date<b>{html.escape(str(research.get("as_of", "?")))}</b></div><div class="card">Qualified candidates<b>{len(rows)}</b></div><div class="card">Universe scanned<b>{research.get("universe_size", 0)}</b></div></div>'
         if not rows:
             summary += '<p>No qualifying candidates in the current report.</p>'
         for rank, (c, n, rate, mean) in enumerate(rows, 1):
             status = 'Research candidate' if n >= 10 and rate is not None and rate >= .6 and mean is not None and mean > 0 else ('Limited evidence' if n < 10 else 'Review risks')
-            summary += f'<h2>#{rank} {html.escape(c["ticker"])} — {html.escape(c["name"])} · {status}</h2><p>Daily drop: {c["daily_drop_pct"]:+.2f}% · Existing research score: {c["score"]}/100 · Comparable historical events: {n}</p>'
+            summary += f'<h2>#{rank} {html.escape(c["ticker"])} — {html.escape(c["name"])} · {status}</h2><p>Daily drop: {c["daily_drop_pct"]:+.2f}% · Rebound research score: <b>{c["score"]}/100</b> · Historical drops: {h.get("total_events", n)} · Score coverage: {c.get("score_coverage_pct", "?")}%</p>'
             summary += '<div class="scroll"><table><tr><th>Holding period</th><th>Events</th><th>Average net return</th><th>Median net return</th><th>Historical positive rate</th><th>Beat SPY</th></tr>'
             for period in (1, 2, 3, 5, 10, 20):
                 st = (c.get('history') or {}).get('horizons', {})
@@ -49,6 +49,23 @@ def main():
                 def pc(v): return '—' if v is None else f'{v*100:+.1f}%'
                 summary += f'<tr><td>{period}d</td><td>{n}</td><td>{pc(rec.get("mean_return"))}</td><td>{pc(rec.get("median_return"))}</td><td>{pc(rec.get("win_rate"))}</td><td>{pc(rec.get("win_rate_vs_spy"))}</td></tr>'
             summary += '</table></div>'
+            summary += '<details open><summary><b>Every historical decline greater than 7% — 3, 5, 10 and 20 trading days</b></summary>'
+            summary += '<p class="muted">Each event is shown, including back-to-back drops. Returns start at the decline-day close and subtract the configured 0.10% round-trip cost. Pending = insufficient future sessions.</p>'
+            summary += '<div class="scroll"><table><tr><th>Selloff date</th><th>Daily decline</th><th>3d</th><th>5d</th><th>10d</th><th>20d</th></tr>'
+            for ev in reversed(h.get('events', [])):
+                def ep(k):
+                    value = ev.get('r' + str(k))
+                    if value is None: return '<td>Pending</td>'
+                    return f'<td class={"pos" if value >= 0 else "neg"}>{value:+.2f}%</td>'
+                summary += '<tr><td>' + html.escape(ev['date']) + '</td><td>' + f'{ev["drop_pct"]:+.2f}%' + '</td>' + ''.join(ep(k) for k in (3,5,10,20)) + '</tr>'
+            summary += '</table></div></details>'
+            summary += '<details><summary><b>100-point score breakdown</b></summary><table><tr><th>Category</th><th>Points earned</th><th>Possible points</th><th>Explanation</th></tr>'
+            labels = {'historical_rebound':'Historical rebound performance','earnings_quality':'Reason for decline (earnings proxy)','fundamentals':'Financial strength','market_context':'Market conditions','technical_support':'Technical support','valuation':'Valuation','drop_severity':'Drop severity (0 weight)'}
+            for comp in c.get('score_breakdown', []):
+                if comp.get('weight',0) <= 0: continue
+                pts = comp.get('points'); maximum = comp.get('max_points')
+                summary += '<tr><td>' + labels.get(comp['component'],comp['component']) + '</td><td>' + ('N/A' if pts is None else f'{pts:.1f}') + '</td><td>' + ('N/A' if maximum is None else f'{maximum:.1f}') + '</td><td>' + html.escape(str(comp.get('note',''))) + '</td></tr>'
+            summary += '</table><p class="muted">Earnings-based catalyst assessment is incomplete without full guidance, revenue expectations and verified news. Missing data can cause weight rescaling; the score is not a calibrated probability.</p></details>'
             risks = c.get('risks') or []
             if risks:
                 summary += '<p><b>Risks and cautions:</b> ' + ' '.join(html.escape(str(x)) for x in risks) + '</p>'

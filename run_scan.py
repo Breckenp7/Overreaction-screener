@@ -122,6 +122,8 @@ def main(argv=None):
                 "daily_drop_pct": round(c["drop"]["one_day_return"] * 100, 2),
                 "score": round(c["score"]["score"], 1),
                 "market_cap": c["market_cap"], "history": c["same_history"],
+                "score_breakdown": c["score"]["breakdown"],
+                "score_coverage_pct": c["score"]["coverage_pct"],
                 "risks": c["counterarguments"][:4]})
         (out_dir / f"{base}_research.json").write_text(json.dumps(research, indent=2, allow_nan=False), encoding="utf-8")
         (out_dir / f"{base}.html").write_text(html, encoding="utf-8")
