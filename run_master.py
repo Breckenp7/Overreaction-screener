@@ -3,6 +3,7 @@ import argparse
 import html
 import json
 from pathlib import Path
+from screener.config import load_config
 
 CSS = '''body{margin:0;background:#0b1220;color:#e8eef8;font:15px system-ui,Arial}header{padding:25px 4%;background:#111c30;border-bottom:1px solid #30415b}h1{margin:0;font-size:27px}header p,.muted{color:#9db0c9}nav{display:flex;gap:8px;padding:14px 4%;flex-wrap:wrap}button{background:#1c2a40;border:1px solid #3b506d;color:#e8eef8;padding:12px 17px;border-radius:9px;cursor:pointer}button.active{background:#2563eb;border-color:#60a5fa}.panel{display:none;padding:0 4% 35px}.panel.active{display:block}iframe{width:100%;height:82vh;border:1px solid #34445f;background:white;border-radius:10px}table{border-collapse:collapse;width:100%;margin:14px 0 26px}td,th{border-bottom:1px solid #30415b;text-align:right;padding:11px 9px}td:first-child,th:first-child{text-align:left}th{color:#a9bfdc}.cards{display:flex;gap:12px;flex-wrap:wrap}.card{background:#16243a;border:1px solid #33435d;padding:15px;border-radius:12px;min-width:145px}.card b{display:block;font-size:24px;margin-top:6px}.pos{color:#4ade80}.neg{color:#fb7185}pre{white-space:pre-wrap;background:#142238;padding:20px;border-radius:10px;line-height:1.6} .scroll{overflow-x:auto}.note{background:#1c2b42;border-left:3px solid #fbbf24;padding:13px;margin:15px 0}'''
 
@@ -14,6 +15,7 @@ def main():
     ap.add_argument('--output', default='output/master_dashboard.html')
     args = ap.parse_args()
     root = Path('output')
+    threshold = load_config()['detection']['daily_drop_pct']
     scan_files = sorted(root.glob('report_*_close.html')) or sorted(root.glob('report_*_open.html'))
     scan = scan_files[-1] if scan_files else None
     rebound = scan.with_name(scan.stem + '_rebound_watchlist.txt') if scan else None
@@ -35,7 +37,7 @@ def main():
         # Rank first by reliability of the history, then observed five-day outcomes and existing research score.
         # This is a descriptive ranking, NOT a calibrated probability or a buy signal.
         rows.sort(key=lambda x: x[0]['score'], reverse=True)
-        summary = '<div class="note">Strictly greater than 7% CLOSE-TO-CLOSE declines only. Historical win rates are NOT forecasts or calibrated probabilities. A small sample cannot justify a buy recommendation. Historical statistics are close-to-close hypothetical returns, with assumed costs. The ranking is descriptive research, not investment advice.</div>'
+        summary = f'<div class="note">Strictly greater than {threshold:g}% CLOSE-TO-CLOSE declines only. Historical win rates are NOT forecasts or calibrated probabilities. A small sample cannot justify a buy recommendation. Historical statistics are close-to-close hypothetical returns, with assumed costs. The ranking is descriptive research, not investment advice.</div>'
         summary += f'<div class="cards"><div class="card">Trading date<b>{html.escape(str(research.get("as_of", "?")))}</b></div><div class="card">Qualified candidates<b>{len(rows)}</b></div><div class="card">Universe scanned<b>{research.get("universe_size", 0)}</b></div></div>'
         if not rows:
             summary += '<p>No qualifying candidates in the current report.</p>'
@@ -49,7 +51,7 @@ def main():
                 def pc(v): return '—' if v is None else f'{v*100:+.1f}%'
                 summary += f'<tr><td>{period}d</td><td>{n}</td><td>{pc(rec.get("mean_return"))}</td><td>{pc(rec.get("median_return"))}</td><td>{pc(rec.get("win_rate"))}</td><td>{pc(rec.get("win_rate_vs_spy"))}</td></tr>'
             summary += '</table></div>'
-            summary += '<details open><summary><b>Every historical decline greater than 7% — 3, 5, 10 and 20 trading days</b></summary>'
+            summary += f'<details open><summary><b>Every historical decline greater than {threshold:g}% — 3, 5, 10 and 20 trading days</b></summary>'
             summary += '<p class="muted">Each event is shown, including back-to-back drops. Returns start at the decline-day close and subtract the configured 0.10% round-trip cost. Pending = insufficient future sessions.</p>'
             summary += '<div class="scroll"><table><tr><th>Selloff date</th><th>Daily decline</th><th>3d</th><th>5d</th><th>10d</th><th>20d</th></tr>'
             for ev in reversed(h.get('events', [])):
@@ -111,6 +113,24 @@ def main():
         summary+="""<script>(function(){const s=document.getElementById('replay-date'),t=document.getElementById('replay-detail'),rs=JSON.parse(document.getElementById('replay-data').textContent);function show(){const r=rs.find(x=>x.date===s.value);if(!r)return;let out='<p>Setups: '+r.setups+' · rankable: '+r.rankable+' · selected: '+r.picks.length+'</p><table><tr><th>Symbol</th><th>Drop</th><th>Score</th><th>Prior events</th><th>1d actual</th><th>5d actual</th><th>20d actual</th></tr>';for(const x of r.picks){out+='<tr><td>'+x.ticker+'</td><td>'+x.drop_pct.toFixed(1)+'%</td><td>'+x.score+'</td><td>'+x.prior_events+'</td><td>'+x.returns['1'].toFixed(2)+'%</td><td>'+x.returns['5'].toFixed(2)+'%</td><td>'+x.returns['20'].toFixed(2)+'%</td></tr>'}t.innerHTML=out+'</table><p>'+r.unranked.length+' setups lacked 5 matured prior events and were not scored.</p>'}s.addEventListener('change',show);show()})();</script>"""
         summary+='<div class="note">'+' '.join(html.escape(x) for x in v['limitations'])+'</div>'
         sections.append(('validation','Walk-forward & historical replay',summary))
+    # Historical 30-day price-only archive: separate from the full live scan.
+    archive_file = root / 'last_30_days.json'
+    if archive_file.exists():
+        archive = json.loads(archive_file.read_text(encoding='utf-8'))
+        days = archive.get('days', [])
+        threshold = archive.get('threshold_pct', 6.5)
+        history_html = '<div class="note">Historical daily close-to-close drops strictly greater than ' + html.escape(str(threshold)) + '%. Price-only reconstruction from the current stock universe. Historical $10B market-cap eligibility, composite scores and catalysts are NOT verified; these are not equivalent to full historical live-screen results.</div>'
+        history_html += '<label for="history-date"><b>Choose a trading date (last 30 calendar days)</b></label> '
+        history_html += '<select id="history-date" style="padding:12px;background:#1c2a40;color:white;border:1px solid #3b506d;border-radius:8px">'
+        for day in days:
+            date = html.escape(day['date'], quote=True)
+            history_html += f'<option value="{date}">{date} · {len(day["declines"])} declines</option>'
+        history_html += '</select><div id="history-results" class="scroll" aria-live="polite"></div>'
+        history_html += '<p class="muted">' + html.escape(archive.get('limitations','')) + '</p>'
+        payload = json.dumps(days).replace('<','\\u003c').replace('>','\\u003e').replace('&','\\u0026')
+        history_html += '<script type="application/json" id="history-json">' + payload + '</script>'
+        history_html += """<script>(function(){const s=document.getElementById('history-date'),el=document.getElementById('history-results'),node=document.getElementById('history-json');if(!s||!el||!node)return;const days=JSON.parse(node.textContent);function draw(){const d=days.find(x=>x.date===s.value);if(!d){el.textContent='No historical price data available.';return;}let out='<p><b>'+d.declines.length+' declines</b> on '+d.date+' · '+d.symbols_with_prices+' symbols with price data</p>';if(!d.declines.length){el.innerHTML=out+'<p>No stocks crossed the threshold in the available price data.</p>';return;}out+='<table><thead><tr><th>Ticker</th><th>Daily decline</th><th>Composite score</th></tr></thead><tbody>';for(const x of d.declines){out+='<tr><td>'+x.ticker+'</td><td class="neg">'+x.drop_pct.toFixed(2)+'%</td><td>Not reconstructed</td></tr>';}el.innerHTML=out+'</tbody></table>';}s.addEventListener('change',draw);draw();})();</script>"""
+        sections.insert(0, ('history30', 'Last 30 days', history_html))
     if not sections:
         raise SystemExit('No reports found. Run run_scan.py and/or run_backtest.py first.')
     buttons=''.join(f'<button data-tab="{key}" class="{"active" if i==0 else ""}">{label}</button>' for i,(key,label,_) in enumerate(sections))

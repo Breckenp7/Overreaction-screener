@@ -86,7 +86,7 @@ def same_stock_history(close, spy_close, current_drop, cfg, exclude_last_days=1)
     horizons = h["horizons"]
     cost = h["round_trip_cost_bps"] / 10000
     thr = h["min_similar_drop_pct"] / 100
-    # Historical comparisons use the same >7% one-session threshold as the live scan.
+    # Historical comparisons use the same configured one-session threshold as the live scan.
     thr = max(thr, cfg["detection"]["daily_drop_pct"] / 100)
     past = close.iloc[:-exclude_last_days] if exclude_last_days else close
     idxs = find_events(past, thr, h["cooldown_days"])

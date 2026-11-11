@@ -16,7 +16,7 @@ def detect_drop(close, cfg):
     if len(close) < 80:
         return None
     r1 = pct_change_over(close, 1)
-    # STRICT: a drop of exactly 7.00% does not qualify; five-day declines never qualify.
+    # STRICT: a drop of exactly the configured threshold does not qualify; five-day declines never qualify.
     if not np.isfinite(r1) or not r1 < -d["daily_drop_pct"] / 100:
         return None
     horizon = 1

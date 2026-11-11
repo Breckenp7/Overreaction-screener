@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 
-def backtest_symbol(df, ticker, daily_drop_pct=7.0, hold_days=5, cost_bps=10, cooldown=10):
+def backtest_symbol(df, ticker, daily_drop_pct=6.5, hold_days=5, cost_bps=10, cooldown=10):
     if df is None or len(df) < 85:
         return []
     df = df.sort_index().dropna(subset=['Open', 'High', 'Low', 'Close']).copy()

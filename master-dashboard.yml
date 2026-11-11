@@ -1,0 +1,221 @@
+name: Master dashboard (scan + backtest)
+
+on:
+  schedule:
+    # Morning: 10:15 AM Eastern
+    - cron: "15 14 * * 1-5"
+    - cron: "15 15 * * 1-5"
+
+    # Afternoon: 4:30 PM Eastern
+    - cron: "30 20 * * 1-5"
+    - cron: "30 21 * * 1-5"
+
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Which scan should run?"
+        type: choice
+        options:
+          - close
+          - open
+        default: close
+      send_alerts:
+        description: "Send email and push alerts?"
+        type: boolean
+        default: false
+
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/master-dashboard.yml"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: master-dashboard
+  cancel-in-progress: false
+
+jobs:
+  master-dashboard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Determine scan mode and daylight saving time
+        id: timing
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          INPUT_MODE: ${{ inputs.mode }}
+          SEND_ALERTS: ${{ inputs.send_alerts }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          from datetime import datetime, timezone
+          from zoneinfo import ZoneInfo
+
+          event = os.environ["EVENT_NAME"]
+          schedule = os.environ.get("SCHEDULE", "")
+          ny = ZoneInfo("America/New_York")
+
+          now = datetime.now(timezone.utc).astimezone(ny)
+          offset = now.utcoffset().total_seconds() / 3600
+
+          mode = "close"
+          should_run = "true"
+          alerts = "false"
+
+          if event == "schedule":
+              morning = schedule.startswith("15 ")
+              mode = "open" if morning else "close"
+
+              expected_utc_hour = (
+                  (14 if offset == -4 else 15)
+                  if morning
+                  else (20 if offset == -4 else 21)
+              )
+
+              scheduled_hour = int(schedule.split()[1])
+
+              if scheduled_hour != expected_utc_hour:
+                  should_run = "false"
+
+              alerts = "true"
+
+          elif event == "workflow_dispatch":
+              mode = os.environ.get("INPUT_MODE") or "close"
+              alerts = str(
+                  os.environ.get("SEND_ALERTS", "false")
+              ).lower()
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"mode={mode}\n")
+              f.write(f"should_run={should_run}\n")
+              f.write(f"send_alerts={alerts}\n")
+
+          print("New York time:", now)
+          print("Mode:", mode)
+          print("Should run:", should_run)
+          print("Send alerts:", alerts)
+          PY
+
+      - name: Generate stock screener and reversal watchlist
+        if: steps.timing.outputs.should_run == 'true'
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          SCAN_MODE: ${{ steps.timing.outputs.mode }}
+          SEND_ALERTS: ${{ steps.timing.outputs.send_alerts }}
+        shell: bash
+        run: |
+          if [ "$SEND_ALERTS" = "true" ]; then
+            python run_scan.py --mode "$SCAN_MODE" --force
+          else
+            python run_scan.py --mode "$SCAN_MODE" --force --dry-run
+          fi
+
+      - name: Run historical backtest
+        if: steps.timing.outputs.should_run == 'true'
+        run: python run_backtest.py
+
+      - name: Run historical validation
+        if: steps.timing.outputs.should_run == 'true'
+        run: python run_validation.py
+
+      - name: Generate combined master dashboard
+        if: steps.timing.outputs.should_run == 'true'
+        run: python run_master.py
+
+      - name: Prepare permanent website
+        if: steps.timing.outputs.should_run == 'true'
+        shell: bash
+        run: |
+          mkdir -p public
+
+          cp output/master_dashboard.html public/index.html
+
+          cat > public/refresh.js <<'JS'
+          document.addEventListener("DOMContentLoaded", () => {
+            const button = document.createElement("button");
+            button.textContent = "Refresh dashboard";
+            button.style.margin = "12px 4%";
+            button.style.padding = "12px 20px";
+            button.style.cursor = "pointer";
+            button.onclick = () => {
+              const url = new URL(window.location.href);
+              url.searchParams.set("refresh", Date.now());
+              window.location.replace(url.toString());
+            };
+
+            const header = document.querySelector("header");
+            if (header) {
+              header.insertAdjacentElement("afterend", button);
+            } else {
+              document.body.prepend(button);
+            }
+          });
+          JS
+
+          python - <<'PY'
+          from pathlib import Path
+
+          page = Path("public/index.html")
+          html = page.read_text(encoding="utf-8")
+
+          html = html.replace(
+              "</body>",
+              '<script src="refresh.js"></script></body>'
+          )
+
+          page.write_text(html, encoding="utf-8")
+          PY
+
+          touch public/.nojekyll
+
+      - name: Upload all reports
+        if: always() && steps.timing.outputs.should_run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: overreaction-master-dashboard
+          path: |
+            output/
+            reports/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Configure GitHub Pages
+        if: steps.timing.outputs.should_run == 'true'
+        uses: actions/configure-pages@v5
+
+      - name: Upload dashboard website
+        if: steps.timing.outputs.should_run == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+      - name: Publish dashboard
+        if: steps.timing.outputs.should_run == 'true'
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -10,7 +10,7 @@ universe:
   extra_tickers_file: extra_tickers.txt  # add any other tickers (e.g. SOFI) there
 
 detection:
-  daily_drop_pct: 7.0          # flag a one-day fall of at least this much
+  daily_drop_pct: 6.5          # flag a one-day fall of at least this much
   multi_day_window: 5          # ...or a fall over this many trading days
   multi_day_drop_pct: 12.0     # retained for legacy reference; not used to qualify
   include_earnings_misses: true   # false = hide drops where EPS clearly missed estimates

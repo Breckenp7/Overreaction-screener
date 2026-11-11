@@ -5,7 +5,7 @@ import pandas as pd
 
 HORIZONS = (1, 2, 3, 5, 10, 20)
 
-def events_for_symbol(df, ticker, threshold=7.0, cost_bps=10, cooldown=10):
+def events_for_symbol(df, ticker, threshold=6.5, cost_bps=10, cooldown=10):
     if df is None or len(df) < 100: return []
     df = df.sort_index().dropna(subset=['Close']).copy()
     close = df['Close'].astype(float).to_numpy()
@@ -29,7 +29,7 @@ def score_from_past(past):
     win=float((r>0).mean()); mean=float(np.clip(r.mean(),-15,15))
     return round(100*(len(past)*win+10*.5)/(len(past)+10)+mean*.5,2)
 
-def walk_forward(prices, spy, threshold=7.0, cost_bps=10, cooldown=10, start='2024-01-01', end=None, top_n=5):
+def walk_forward(prices, spy, threshold=6.5, cost_bps=10, cooldown=10, start='2024-01-01', end=None, top_n=5):
     spy_close=None
     if spy is not None and not spy.empty:
         spy_close=spy['Close'].dropna().astype(float)
@@ -81,7 +81,7 @@ def walk_forward(prices, spy, threshold=7.0, cost_bps=10, cooldown=10, start='20
                        'mean_excess_spy_pct':round(float(np.mean(excess)),2) if excess else None,'spy_matched_n':len(excess)}
         return result
     return {'method':'price-only walk-forward; 5-day win rate shrunk toward 50%, min 5 matured prior events; NOT calibrated probability',
-            'threshold_rule':'strictly greater than 7% close-to-close','start':start,'end':end,'top_n':top_n,
+            'threshold_rule':f'strictly greater than {threshold:g}% close-to-close','start':start,'end':end,'top_n':top_n,
             'symbols_downloaded':len(prices),'historical_events_total':len(all_events),
             'replay_dates':len(replays),'rankable_events':len(all_eligible),'selected_events':len(chosen),
             'selected':aggregate(chosen),'all_rankable':aggregate(all_eligible),'replays':replays,

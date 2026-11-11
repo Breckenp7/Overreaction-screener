@@ -1,0 +1,43 @@
+name: Test Yahoo Finance Connection
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install yfinance
+        run: pip install yfinance
+
+      - name: Test SPY download
+        run: |
+          python - <<'PY'
+          import yfinance as yf
+          import traceback
+
+          print("Testing Yahoo Finance connection...")
+          print("yfinance version:", yf.__version__)
+
+          try:
+              data = yf.download(
+                  "SPY",
+                  period="1mo",
+                  interval="1d",
+                  auto_adjust=True,
+                  threads=False,
+                  progress=False
+              )
+              print("Rows returned:", len(data))
+              print(data.tail())
+              if data.empty:
+                  raise RuntimeError("Yahoo returned no SPY data")
+          except Exception:
+              traceback.print_exc()
+              raise
+          PY

@@ -288,7 +288,7 @@ def main(argv=None):
                 )
             ),
             "threshold_rule": (
-                "strictly greater than 7% "
+                f"strictly greater than {cfg['detection']['daily_drop_pct']:g}% "
                 "close-to-close decline"
             ),
             "universe_size": len(tickers),
